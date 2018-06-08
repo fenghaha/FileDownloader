@@ -104,7 +104,7 @@ public class DownloadTask {
         for (int i = 0; i < tcount; i++) {
 
             if (i == tcount - 1) {
-                runnable = new DownloadRunnable(this, begin, fileLength - 1, i, context);
+                runnable = new DownloadRunnable(this, begin, fileLength *2, i, context);
             } else {
                 runnable = new DownloadRunnable(this, begin, begin + block - 1, i, context);
             }
@@ -150,6 +150,7 @@ public class DownloadTask {
     }
 
     public void save() {
+        isPause = true;
         //整个下载项目保存信息
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.putInt("threadCount", threadCount);
@@ -157,7 +158,7 @@ public class DownloadTask {
         editor.putString("url", url);
         editor.putString("fileName", fileName);
         editor.putLong("currentLength", currentLength);
-        editor.apply();
+        editor.commit();
         //各个线程保存信息
         for (DownloadRunnable r :
                 runnableList) {

@@ -69,6 +69,7 @@ public class DownloadRunnable implements Runnable {
                 int len;
                 byte buf[] = new byte[1024];
                 while (!isPause && (len = inputStream.read(buf)) != -1) {
+                    if (begin+downloadedLength>=end)break;
                     raf.write(buf, 0, len);
                     downloadedLength += len;
                     task.appendCurrentLength(len);
@@ -92,10 +93,12 @@ public class DownloadRunnable implements Runnable {
         }
     }
 
-    public void saveData() {
+    synchronized public void saveData() {
+        isPause = true;
         SharedPreferences.Editor editor = sharedPreferences.edit();
-        editor.putLong("begin", downloadedLength);
-        editor.apply();
+        editor.putLong("begin", downloadedLength + begin);
+        editor.putLong("end", end);
+        editor.commit();
     }
 
     public long getBegin() {
@@ -103,9 +106,7 @@ public class DownloadRunnable implements Runnable {
     }
 
     public void setBegin(long begin) {
-        Log.d(TAG, "bf setBegin: " + this.begin);
         this.begin = begin;
-        Log.d(TAG, "aft setBegin: " + this.begin);
     }
 
     public boolean isPause() {
