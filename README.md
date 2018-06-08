@@ -6,7 +6,7 @@
 + 断点续传
 + 程序内实时暂停,继续,取消下载
 ## 用法
-1 下载
+1. 下载
 ```
 Downloadtask task = new DownloadTask.TaskBuilder()
                 .url(url)
@@ -40,7 +40,7 @@ Downloadtask task = new DownloadTask.TaskBuilder()
                 }).build();
                   .startDownload();
 ```
-2 断点续传
+2. 断点续传
 ```
  @Override
     protected void onDestroy() {
