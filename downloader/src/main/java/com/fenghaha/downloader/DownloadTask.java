@@ -45,7 +45,6 @@ public class DownloadTask {
         String taskInfo = "taskInfo: " + "fileName=" + builder.fileName + "&url=" + MD5Util.encrypt(builder.url) + "&path=" + MD5Util.encrypt(builder.path) + "&threadCount=" + builder.threadCount;
         sharedPreferences = builder.context.getSharedPreferences(taskInfo, Context.MODE_PRIVATE);
         isStored = sharedPreferences.contains(taskInfo);
-
         currentLength = sharedPreferences.getLong("currentLength", 0);
         threadCount = sharedPreferences.getInt("threadCount", builder.threadCount);
         path = sharedPreferences.getString("path", builder.path);
