@@ -48,3 +48,5 @@ Downloadtask task = new DownloadTask.TaskBuilder()
         if (task != null) task.save();
     }
 ```
+## BUG
++ 断点续传存在问题,文件可能会损坏.(几个小时都没能解决,我也很绝望啊!!!)
