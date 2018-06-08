@@ -1,10 +1,13 @@
 package com.fenghaha.downloader;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Handler;
 import android.util.Log;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
@@ -18,7 +21,9 @@ import java.util.concurrent.atomic.AtomicLong;
 public class DownloadTask {
     private static final int CPU_COUNT = Runtime.getRuntime().availableProcessors();
     private static final int MAXIMUM_POOL_SIZE = CPU_COUNT * 2 + 1;
-    private List<DownloadRunnable> runnableList;
+    private ArrayList<DownloadRunnable> runnableList;
+    private Context context;
+    private SharedPreferences sharedPreferences;
     private boolean isPause = false;
     private boolean isCancel;
     private int threadCount;
@@ -27,19 +32,29 @@ public class DownloadTask {
     private String fileName;
     private long fileLength;
     private long currentLength = 0;
-    // private AtomicLong currentLength = new AtomicLong(0);
     private boolean isFinished = false;
+    private File mFile;
     private DownloadCallback callback;
     private DownloadManager manager = DownloadManager.getInstance();
     private static final String TAG = "DownloadTask";
     private Handler handler = new Handler();
+    private boolean isStored;
 
     private DownloadTask(TaskBuilder builder) {
-        threadCount = builder.threadCount;
-        path = builder.path;
-        url = builder.url;
-        fileName = builder.fileName;
+
+        String taskInfo = "taskInfo: " + "fileName=" + builder.fileName + "&url=" + MD5Util.encrypt(builder.url) + "&path=" + MD5Util.encrypt(builder.path) + "&threadCount=" + builder.threadCount;
+        sharedPreferences = builder.context.getSharedPreferences(taskInfo, Context.MODE_PRIVATE);
+        isStored = sharedPreferences.contains(taskInfo);
+
+        currentLength = sharedPreferences.getLong("currentLength", 0);
+        threadCount = sharedPreferences.getInt("threadCount", builder.threadCount);
+        path = sharedPreferences.getString("path", builder.path);
+        url = sharedPreferences.getString("url", builder.url);
+        fileName = sharedPreferences.getString("fileName", builder.fileName);
         callback = builder.callback;
+        context = builder.context;
+
+
     }
 
     synchronized void appendCurrentLength(long size) {
@@ -57,7 +72,11 @@ public class DownloadTask {
             connection.setRequestMethod("GET");
             connection.setConnectTimeout(5000);
             if (connection.getResponseCode() == HttpURLConnection.HTTP_OK) {
+                mFile = new File(path, fileName);
+                RandomAccessFile raf = new RandomAccessFile(mFile, "rwd");
                 fileLength = connection.getContentLength();
+                raf.setLength(fileLength);
+
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -75,17 +94,9 @@ public class DownloadTask {
     void prepare() {
         requestFileInfo();
         File file = new File(path, fileName);
-        long localLength = 0;
         if (file.exists()) {
-            localLength = file.length();
-        }
-        if (localLength == fileLength) {
-            handler.post(() -> callback.onFinish());
-            return;
-        } else if (localLength > fileLength) {
             file.delete();
         }
-
         long tcount = getThreadCount() > MAXIMUM_POOL_SIZE ? MAXIMUM_POOL_SIZE : threadCount;
         long block = fileLength / tcount; //将下载文件分段，每段的长度
         long begin = 0;
@@ -94,9 +105,9 @@ public class DownloadTask {
         for (int i = 0; i < tcount; i++) {
 
             if (i == tcount - 1) {
-                runnable = new DownloadRunnable(this, begin, fileLength - 1, i);
+                runnable = new DownloadRunnable(this, begin, fileLength - 1, i, context);
             } else {
-                runnable = new DownloadRunnable(this, begin, begin + block - 1, i);
+                runnable = new DownloadRunnable(this, begin, begin + block - 1, i, context);
             }
             Log.d(TAG, "begin: " + begin + "end: " + (begin + block - 1) + "block: " + block);
             begin += block;
@@ -104,10 +115,10 @@ public class DownloadTask {
         }
     }
 
-    private void saveThreadState() {
+    private void saveThreadAtPause() {
         for (DownloadRunnable r :
                 runnableList) {
-            r.setBegin(r.getBegin()+r.getDownloadedLength());
+            r.setBegin(r.getBegin() + r.getDownloadedLength());
         }
     }
 
@@ -139,9 +150,25 @@ public class DownloadTask {
             finish(callback);
     }
 
+    public void save() {
+        //整个下载项目保存信息
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putInt("threadCount", threadCount);
+        editor.putString("path", path);
+        editor.putString("url", url);
+        editor.putString("fileName", fileName);
+        editor.putLong("currentLength", currentLength);
+        editor.apply();
+        //各个线程保存信息
+        for (DownloadRunnable r :
+                runnableList) {
+            r.saveData();
+        }
+    }
+
     public void pause() {
         isPause = true;
-        saveThreadState();
+        saveThreadAtPause();
         for (DownloadRunnable r :
                 runnableList) {
             r.pause();
@@ -151,16 +178,17 @@ public class DownloadTask {
     }
 
     public void restart() {
-        isPause = false;
         for (DownloadRunnable r :
                 runnableList) {
             r.restart();
         }
         startDownload();
+        isPause = false;
     }
 
     public void cancel() {
         isCancel = true;
+        mFile.delete();
         if (callback != null) {
             handler.post(() -> callback.onCancel());
         }
@@ -169,7 +197,7 @@ public class DownloadTask {
     private void finish(DownloadCallback callback) {
         handler.post(() -> {
             callback.onProcess(fileLength, fileLength, 0, 100);
-            callback.onFinish();
+            callback.onFinish(mFile);
         });
 
     }
@@ -187,7 +215,7 @@ public class DownloadTask {
         return false;
     }
 
-    public List<DownloadRunnable> getRunnableList() {
+    public ArrayList<DownloadRunnable> getRunnableList() {
         return runnableList;
     }
 
@@ -238,9 +266,10 @@ public class DownloadTask {
         private String url;
         private String fileName;
         private DownloadCallback callback;
+        private Context context;
 
-        private boolean check() {
-            return !(path == null || url == null || callback == null);
+        private boolean check() {//检查必要属性
+            return !(path == null || url == null || callback == null || context == null);
         }
 
         public TaskBuilder() {
@@ -268,6 +297,11 @@ public class DownloadTask {
 
         public TaskBuilder callback(DownloadCallback val) {
             callback = val;
+            return this;
+        }
+
+        public TaskBuilder context(Context val) {
+            context = val;
             return this;
         }
 

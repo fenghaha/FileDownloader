@@ -19,6 +19,8 @@ import android.widget.Toast;
 import com.fenghaha.downloader.DownloadCallback;
 import com.fenghaha.downloader.DownloadTask;
 
+import java.io.File;
+
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
     private ProgressBar progressBar;
     private EditText editText;
@@ -48,11 +50,18 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         download.setOnClickListener(this);
     }
 
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (task != null) task.save();
+    }
+
     private void download(String url) {
         task = new DownloadTask.TaskBuilder()
                 .url(url)
                 .path(saveFilePath)
                 .threadCount(3)
+                .context(getApplicationContext())
                 .callback(new DownloadCallback() {
                     @Override
                     public void onPause() {
@@ -68,12 +77,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     @Override
                     public void onCancel() {
                         Toast.makeText(MainActivity.this, "下载被取消了!", Toast.LENGTH_SHORT).show();
+                        progressBar.setProgress(0);
                     }
 
                     @Override
-                    public void onFinish() {
+                    public void onFinish(File file) {
                         Toast.makeText(MainActivity.this, "下完了!", Toast.LENGTH_SHORT).show();
-
                     }
 
                     @Override
@@ -106,13 +115,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 if (task.isPause()) {
                     pause.setText("点我暂停");
                     task.restart();
-                } else{
+                } else {
                     task.pause();
                     pause.setText("点我继续");
                 }
                 break;
             case R.id.bt_cancel:
-                task.cancel();
+                if (task != null)
+                    task.cancel();
                 break;
         }
     }

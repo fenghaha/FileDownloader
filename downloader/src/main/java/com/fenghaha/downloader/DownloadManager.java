@@ -1,5 +1,7 @@
 package com.fenghaha.downloader;
 
+import android.util.Log;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -48,14 +50,17 @@ public class DownloadManager {
 
 
     void startOneTask(final DownloadTask task, final DownloadCallback callback) {
-        threadPool.execute(() -> {
-            if (!task.isPause())
-                task.prepare();
-            for (DownloadRunnable runnable :
-                    task.getRunnableList()) {
-                threadPool.execute(runnable);
+        threadPool.execute(new Runnable() {
+            @Override
+            public void run() {
+
+                if (!task.isPause()) task.prepare();
+                for (DownloadRunnable runnable :
+                        task.getRunnableList()) {
+                    threadPool.execute(runnable);
+                }
+                task.refresh();
             }
-            task.refresh();
         });
     }
 

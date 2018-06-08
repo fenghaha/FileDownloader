@@ -1,5 +1,7 @@
 package com.fenghaha.downloader;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.util.Log;
 
 import java.io.File;
@@ -17,17 +19,26 @@ public class DownloadRunnable implements Runnable {
     private DownloadTask task;
     private long begin;
     private long end;
-    private int downloadedLength = 0;
+    private long downloadedLength = 0;
     private int threadId;
     private boolean isFinish;
     private boolean isPause = false;
+    private Context context;
+    private SharedPreferences sharedPreferences;
+    private String threadInfo;
+    private boolean isStored;
     private static final String TAG = "DownloadRunnable";
 
-    public DownloadRunnable(DownloadTask task, long begin, long end, int threadId) {
+    DownloadRunnable(DownloadTask task, long begin, long end, int threadId, Context context) {
+        threadInfo = "threadInfo: name=" + task.getFileName() + "&id=" + threadId;
+        sharedPreferences = context.getSharedPreferences(threadInfo, Context.MODE_PRIVATE);
+        isStored = sharedPreferences.contains(threadInfo);
+        this.begin = sharedPreferences.getLong("begin", begin);//恢复数据
+        if (isStored) this.downloadedLength = this.begin;
         this.task = task;
-        this.begin = begin;
         this.end = end;
         this.threadId = threadId;
+        this.context = context;
     }
 
     @Override
@@ -81,6 +92,12 @@ public class DownloadRunnable implements Runnable {
         }
     }
 
+    public void saveData() {
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putLong("begin", downloadedLength);
+        editor.apply();
+    }
+
     public long getBegin() {
         return begin;
     }
@@ -116,7 +133,7 @@ public class DownloadRunnable implements Runnable {
     }
 
 
-    public int getDownloadedLength() {
+    public long getDownloadedLength() {
         return downloadedLength;
     }
 
