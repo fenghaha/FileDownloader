@@ -10,14 +10,20 @@ import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ProgressBar;
 import android.widget.Toast;
 
 import com.fenghaha.downloader.DownloadCallback;
 import com.fenghaha.downloader.DownloadTask;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements View.OnClickListener {
+    private ProgressBar progressBar;
+    private EditText editText;
+    private Button pause;
+    private DownloadTask task;
     private String saveFilePath = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).getPath();
     private static final String TAG = "MainActivity";
 
@@ -32,14 +38,18 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void bindViews() {
-        Button button = findViewById(R.id.bt_download);
-        EditText editText = findViewById(R.id.et_url);
-        button.setOnClickListener(v -> download(editText.getText().toString()));
-
+        Button download = findViewById(R.id.bt_download);
+        pause = findViewById(R.id.bt_pause);
+        Button cancel = findViewById(R.id.bt_cancel);
+        editText = findViewById(R.id.et_url);
+        progressBar = findViewById(R.id.pb_01);
+        pause.setOnClickListener(this);
+        cancel.setOnClickListener(this);
+        download.setOnClickListener(this);
     }
 
     private void download(String url) {
-        DownloadTask task = new DownloadTask.TaskBuilder()
+        task = new DownloadTask.TaskBuilder()
                 .url(url)
                 .path(saveFilePath)
                 .threadCount(3)
@@ -51,7 +61,8 @@ public class MainActivity extends AppCompatActivity {
 
                     @Override
                     public void onProcess(long total, long current, float speed, int percent) {
-                        Log.d(TAG, "总共: " + total/1024+"kb  " + "下载了: " + current/1024+"kb  " + "速度: " + speed/1024+"kb/s  "  + "百分比: " + percent+"%");
+                        progressBar.setProgress(percent);
+                        Log.d(TAG, "总共: " + total / 1024 + "kb  " + "下载了: " + current / 1024 + "kb  " + "速度: " + speed / 1024 + "kb/s  " + "百分比: " + percent + "%");
                     }
 
                     @Override
@@ -85,4 +96,24 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    @Override
+    public void onClick(View v) {
+        switch (v.getId()) {
+            case R.id.bt_download:
+                download(editText.getText().toString());
+                break;
+            case R.id.bt_pause:
+                if (task.isPause()) {
+                    pause.setText("点我暂停");
+                    task.restart();
+                } else{
+                    task.pause();
+                    pause.setText("点我继续");
+                }
+                break;
+            case R.id.bt_cancel:
+                task.cancel();
+                break;
+        }
+    }
 }

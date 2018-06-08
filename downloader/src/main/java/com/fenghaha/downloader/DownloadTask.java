@@ -19,7 +19,7 @@ public class DownloadTask {
     private static final int CPU_COUNT = Runtime.getRuntime().availableProcessors();
     private static final int MAXIMUM_POOL_SIZE = CPU_COUNT * 2 + 1;
     private List<DownloadRunnable> runnableList;
-    private boolean isPause;
+    private boolean isPause = false;
     private boolean isCancel;
     private int threadCount;
     private String path;
@@ -74,6 +74,18 @@ public class DownloadTask {
 
     void prepare() {
         requestFileInfo();
+        File file = new File(path, fileName);
+        long localLength = 0;
+        if (file.exists()) {
+            localLength = file.length();
+        }
+        if (localLength == fileLength) {
+            handler.post(() -> callback.onFinish());
+            return;
+        } else if (localLength > fileLength) {
+            file.delete();
+        }
+
         long tcount = getThreadCount() > MAXIMUM_POOL_SIZE ? MAXIMUM_POOL_SIZE : threadCount;
         long block = fileLength / tcount; //将下载文件分段，每段的长度
         long begin = 0;
@@ -92,26 +104,20 @@ public class DownloadTask {
         }
     }
 
+    private void saveThreadState() {
+        for (DownloadRunnable r :
+                runnableList) {
+            r.setBegin(r.getBegin()+r.getDownloadedLength());
+        }
+    }
+
     //实时更新下载状态
     void refresh() {
-        boolean isFinish = false;
         long lastDownloadSize = 0;
         float speed;
         Log.d(TAG, "path: " + path + "name: " + fileName);
-        File file = new File(path, fileName);
-        long localLength = 0;
-        if (file.exists()) {
-            localLength = file.length();
-        }
-        if (localLength == fileLength) {
-            handler.post(() -> callback.onFinish());
-            return;
-        } else if (localLength > fileLength) {
-            file.delete();
-        }
-
         long time = System.currentTimeMillis();
-        while (!isFinish) {
+        while (!isFinished) {
             if (isPause || isCancel) break;
             int percent = currentLength == fileLength ? 100 : (int) (100 * currentLength / fileLength);
             long spendTime = (System.currentTimeMillis() - time);
@@ -122,23 +128,38 @@ public class DownloadTask {
             if (percent == 100) break;
             lastDownloadSize = currentLength;
             time = System.currentTimeMillis();
-            isFinish = checkFinish();
+            isFinished = checkFinish();
             try {
                 Thread.sleep(500);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
         }
-        finish(callback);
+        if (!isPause)
+            finish(callback);
     }
 
-    private void pause() {
+    public void pause() {
         isPause = true;
+        saveThreadState();
+        for (DownloadRunnable r :
+                runnableList) {
+            r.pause();
+        }
         if (callback != null)
             handler.post(() -> callback.onPause());
     }
 
-    private void cancel() {
+    public void restart() {
+        isPause = false;
+        for (DownloadRunnable r :
+                runnableList) {
+            r.restart();
+        }
+        startDownload();
+    }
+
+    public void cancel() {
         isCancel = true;
         if (callback != null) {
             handler.post(() -> callback.onCancel());
@@ -182,6 +203,21 @@ public class DownloadTask {
         return fileLength;
     }
 
+    public boolean isPause() {
+        return isPause;
+    }
+
+    public void setPause(boolean pause) {
+        isPause = pause;
+    }
+
+    public boolean isCancel() {
+        return isCancel;
+    }
+
+    public void setCancel(boolean cancel) {
+        isCancel = cancel;
+    }
 
     public String getPath() {
         return path;

@@ -20,6 +20,7 @@ public class DownloadRunnable implements Runnable {
     private int downloadedLength = 0;
     private int threadId;
     private boolean isFinish;
+    private boolean isPause = false;
     private static final String TAG = "DownloadRunnable";
 
     public DownloadRunnable(DownloadTask task, long begin, long end, int threadId) {
@@ -52,11 +53,11 @@ public class DownloadRunnable implements Runnable {
             if (connection.getResponseCode() == 206) {
                 raf = new RandomAccessFile(new File(task.getPath(), task.getFileName()), "rwd");
                 raf.seek(begin);
-                Log.d(TAG, "begin: " + begin + "end: " + end);
+                Log.d(TAG, "id: " + threadId + "  begin: " + begin / 1024 + "end: " + end / 1024);
                 inputStream = connection.getInputStream();
                 int len;
                 byte buf[] = new byte[1024];
-                while ((len = inputStream.read(buf)) != -1) {
+                while (!isPause && (len = inputStream.read(buf)) != -1) {
                     raf.write(buf, 0, len);
                     downloadedLength += len;
                     task.appendCurrentLength(len);
@@ -79,6 +80,41 @@ public class DownloadRunnable implements Runnable {
 
         }
     }
+
+    public long getBegin() {
+        return begin;
+    }
+
+    public void setBegin(long begin) {
+        Log.d(TAG, "bf setBegin: " + this.begin);
+        this.begin = begin;
+        Log.d(TAG, "aft setBegin: " + this.begin);
+    }
+
+    public boolean isPause() {
+        return isPause;
+    }
+
+    public void pause() {
+        isPause = true;
+    }
+
+    public void restart() {
+        isPause = false;
+    }
+
+    public long getEnd() {
+        return end;
+    }
+
+    public void setEnd(long end) {
+        this.end = end;
+    }
+
+    public int getThreadId() {
+        return threadId;
+    }
+
 
     public int getDownloadedLength() {
         return downloadedLength;
