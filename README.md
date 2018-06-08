@@ -3,10 +3,12 @@
 
 ## 支持
 + 多线程下载一个(多个)文件
-+ 
++ 断点续传
++ 程序内实时暂停,继续,取消下载
 ## 用法
+1 下载
 ```
-task = new DownloadTask.TaskBuilder()
+Downloadtask task = new DownloadTask.TaskBuilder()
                 .url(url)
                 .path(saveFilePath)
                 .threadCount(3)//设置线程数
@@ -37,4 +39,12 @@ task = new DownloadTask.TaskBuilder()
                     }
                 }).build();
                   .startDownload();
+```
+2 断点续传
+```
+ @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (task != null) task.save();
+    }
 ```
