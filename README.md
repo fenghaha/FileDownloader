@@ -37,7 +37,7 @@ Downloadtask task = new DownloadTask.TaskBuilder()
                     public void onFailed(String reason) {
                        //TODO　下载失败
                     }
-                }).build();
+                }).build()
                   .startDownload();
 ```
 2. 断点续传
