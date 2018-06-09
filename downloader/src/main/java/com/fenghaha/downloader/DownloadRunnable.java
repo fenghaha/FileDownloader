@@ -23,7 +23,7 @@ public class DownloadRunnable implements Runnable {
     private int threadId;
     private boolean isFinish;
     private boolean isPause = false;
-    private Context context;
+    private boolean isRestart = false;
     private SharedPreferences sharedPreferences;
     private String threadInfo;
     private boolean isStored;
@@ -34,15 +34,13 @@ public class DownloadRunnable implements Runnable {
         sharedPreferences = context.getSharedPreferences(threadInfo, Context.MODE_PRIVATE);
         isStored = sharedPreferences.contains(threadInfo);
         this.begin = sharedPreferences.getLong("begin", begin);//恢复数据
-        if (isStored) this.downloadedLength = this.begin;
         this.task = task;
         this.end = end;
         this.threadId = threadId;
-        this.context = context;
     }
 
-    @Override
-    public void run() {
+    private void threadDownload(long begin, long end) {
+        Log.d(TAG, "id: " + threadId + "threadDownload:   begin = "+begin+" end = "+end);
         if (begin >= end) {
             isFinish = true;
             return;
@@ -64,12 +62,13 @@ public class DownloadRunnable implements Runnable {
             if (connection.getResponseCode() == 206) {
                 raf = new RandomAccessFile(new File(task.getPath(), task.getFileName()), "rwd");
                 raf.seek(begin);
-                Log.d(TAG, "id: " + threadId + "  begin: " + begin / 1024 + "end: " + end / 1024);
+                Log.d(TAG, "id: " + threadId + "  begin: " + begin  + "end: " + end);
                 inputStream = connection.getInputStream();
                 int len;
                 byte buf[] = new byte[1024];
-                while (!isPause && (len = inputStream.read(buf)) != -1) {
-                    if (begin+downloadedLength>=end)break;
+                while ((len = inputStream.read(buf)) != -1) {
+                    if (isPause) return;
+                    if (begin + downloadedLength >= end) break;
                     raf.write(buf, 0, len);
                     downloadedLength += len;
                     task.appendCurrentLength(len);
@@ -93,11 +92,29 @@ public class DownloadRunnable implements Runnable {
         }
     }
 
+    @Override
+    public void run() {
+        Log.d(TAG, "isRestart = "+isRestart+" isPause = "+isPause);
+        if (isRestart&&!isPause) {
+            Log.d(TAG, "id="+threadId+"run: restart  begin="+begin+" down="+downloadedLength+"end = "+end);
+            threadDownload(begin + downloadedLength - 1, end);
+            downloadedLength = 0;
+        } else threadDownload(begin, end);
+    }
+
+
     synchronized public void saveData() {
         isPause = true;
         SharedPreferences.Editor editor = sharedPreferences.edit();
-        editor.putLong("begin", downloadedLength + begin);
+        editor.putLong("begin", downloadedLength + begin - 1);
         editor.putLong("end", end);
+        Log.d(TAG, "saveData:  begin = " + begin + " download = " + downloadedLength + " end  = " + end);
+        editor.commit();
+    }
+
+    void cleanSP() {
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.clear();
         editor.commit();
     }
 
@@ -115,10 +132,14 @@ public class DownloadRunnable implements Runnable {
 
     public void pause() {
         isPause = true;
+        isRestart = false;
     }
 
-    public void restart() {
+     void restart() {
         isPause = false;
+        isRestart = true;
+        Log.d(TAG, "id="+threadId+"restart: 了"+"isRestart = "+isRestart+" isPause = "+isPause);
+
     }
 
     public long getEnd() {

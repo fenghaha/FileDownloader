@@ -49,18 +49,14 @@ public class DownloadManager {
     }
 
 
-    void startOneTask(final DownloadTask task, final DownloadCallback callback) {
-        threadPool.execute(new Runnable() {
-            @Override
-            public void run() {
-
-                if (!task.isPause()) task.prepare();
-                for (DownloadRunnable runnable :
-                        task.getRunnableList()) {
-                    threadPool.execute(runnable);
-                }
-                task.refresh();
+    void startOneTask( DownloadTask task,  DownloadCallback callback) {
+        threadPool.execute(() -> {
+            task.prepare();
+            for (DownloadRunnable runnable :
+                    task.getRunnableList()) {
+                threadPool.execute(runnable);
             }
+            task.refresh();
         });
     }
 

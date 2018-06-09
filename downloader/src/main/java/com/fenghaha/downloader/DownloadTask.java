@@ -41,8 +41,7 @@ public class DownloadTask {
     private boolean isStored;
 
     private DownloadTask(TaskBuilder builder) {
-
-        String taskInfo = "taskInfo: " + "fileName=" + builder.fileName + "&url=" + MD5Util.encrypt(builder.url) + "&path=" + MD5Util.encrypt(builder.path) + "&threadCount=" + builder.threadCount;
+        String taskInfo = "taskInfo: " + "&url=" + MD5Util.encrypt(builder.url) + "&path=" + MD5Util.encrypt(builder.path) + "&threadCount=" + builder.threadCount;
         sharedPreferences = builder.context.getSharedPreferences(taskInfo, Context.MODE_PRIVATE);
         isStored = sharedPreferences.contains(taskInfo);
         currentLength = sharedPreferences.getLong("currentLength", 0);
@@ -52,8 +51,6 @@ public class DownloadTask {
         fileName = sharedPreferences.getString("fileName", builder.fileName);
         callback = builder.callback;
         context = builder.context;
-
-
     }
 
     synchronized void appendCurrentLength(long size) {
@@ -91,6 +88,8 @@ public class DownloadTask {
     }
 
     void prepare() {
+        if (isPause) return;
+        Log.d(TAG, "prepare: 了");
         requestFileInfo();
         File file = new File(path, fileName);
         if (file.exists()) {
@@ -104,7 +103,7 @@ public class DownloadTask {
         for (int i = 0; i < tcount; i++) {
 
             if (i == tcount - 1) {
-                runnable = new DownloadRunnable(this, begin, fileLength *2, i, context);
+                runnable = new DownloadRunnable(this, begin, fileLength * 2, i, context);
             } else {
                 runnable = new DownloadRunnable(this, begin, begin + block - 1, i, context);
             }
@@ -114,12 +113,6 @@ public class DownloadTask {
         }
     }
 
-    private void saveThreadAtPause() {
-        for (DownloadRunnable r :
-                runnableList) {
-            r.setBegin(r.getBegin() + r.getDownloadedLength());
-        }
-    }
 
     //实时更新下载状态
     void refresh() {
@@ -168,7 +161,6 @@ public class DownloadTask {
 
     public void pause() {
         isPause = true;
-        saveThreadAtPause();
         for (DownloadRunnable r :
                 runnableList) {
             r.pause();
@@ -195,6 +187,10 @@ public class DownloadTask {
     }
 
     private void finish(DownloadCallback callback) {
+        for (DownloadRunnable r :
+                runnableList) {
+            r.cleanSP();
+        }
         handler.post(() -> {
             callback.onProcess(fileLength, fileLength, 0, 100);
             callback.onFinish(mFile);
